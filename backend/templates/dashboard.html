@@ -1,0 +1,144 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Yarrow-Mullein Bank Services</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css">
+</head>
+
+<body class="container mt-5">
+
+  <h1>Yarrow-Mullein Bank Services</h1>
+  <h3>Welcome, {{ user.first_name }} {{ user.last_name }}</h3>
+
+  <div class="alert alert-primary mt-4">
+    <h4>Banking Dashboard</h4>
+    <h5>Account Balance: ${{ '%.2f'|format(user.balance) }}</h5>
+  </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+      <div class="alert alert-info">{{ message }}</div>
+    {% endfor %}
+  {% endwith %}
+
+  <form action="/api/deposit" method="POST" class="mb-4">
+    <div class="mb-3">
+      <label for="depositAmount" class="form-label">Deposit Amount</label>
+      <input type="number" step="0.01" min="0.01"
+             class="form-control" id="depositAmount"
+             name="amount" required>
+    </div>
+
+    <button type="submit" class="btn btn-success">
+      Deposit
+    </button>
+  </form>
+
+  <form action="/api/withdraw" method="POST" class="mb-4">
+    <div class="mb-3">
+      <label for="withdrawAmount" class="form-label">Withdrawal Amount</label>
+      <input type="number" step="0.01" min="0.01"
+             class="form-control" id="withdrawAmount"
+             name="amount" required>
+    </div>
+
+    <button type="submit" class="btn btn-danger">
+      Withdraw
+    </button>
+  </form>
+
+  <hr>
+
+  <h4>Monthly Transaction Report</h4>
+
+  <button id="viewTransactions"
+          type="button"
+          class="btn btn-info mb-3">
+    View Transactions
+  </button>
+
+  <div id="transactionsContainer" style="display:none;">
+    <h5>Your Transactions</h5>
+    <div id="transactionsList"></div>
+  </div>
+
+  <a href="/api/logout" class="btn btn-secondary mt-3">
+    Logout
+  </a>
+
+  <script>
+    // Get the logged-in customer's MongoDB ID from Flask.
+    const userId = {{ user['_id'] | string | tojson }};
+
+    const button = document.getElementById('viewTransactions');
+    const container = document.getElementById('transactionsContainer');
+    const list = document.getElementById('transactionsList');
+
+    button.addEventListener('click', async function () {
+
+      container.style.display = 'block';
+      list.textContent = 'Loading transactions...';
+
+      try {
+        // Request data from the JavaScript transactions service.
+        const response = await fetch(
+          '/api/transactions/' + encodeURIComponent(userId)
+        );
+
+        if (!response.ok) {
+          throw new Error('HTTP ' + response.status);
+        }
+
+        const groups = await response.json();
+        list.replaceChildren();
+
+        if (!Array.isArray(groups) || groups.length === 0) {
+          list.textContent = 'No transactions found.';
+          return;
+        }
+
+        groups.forEach(function(group) {
+
+          const year = group._id.year;
+          const month = group._id.month;
+
+          const monthHeading = document.createElement('h5');
+
+          monthHeading.textContent = new Date(
+            Date.UTC(year, month - 1, 1)
+          ).toLocaleDateString('en-CA', {
+            month: 'long',
+            year: 'numeric',
+            timeZone: 'UTC'
+          });
+
+          list.appendChild(monthHeading);
+
+          group.transactions.forEach(function(tx) {
+
+            const transaction = document.createElement('p');
+
+            transaction.textContent =
+              tx.type.charAt(0).toUpperCase() +
+              tx.type.slice(1) +
+              ': $' + Number(tx.amount).toFixed(2) +
+              ' - ' + new Date(tx.date).toLocaleDateString();
+
+            list.appendChild(transaction);
+          });
+        });
+
+      } catch (error) {
+        console.error('Transactions error:', error);
+
+        list.textContent =
+          'Failed to load transactions: ' + error.message;
+      }
+    });
+  </script>
+
+</body>
+</html>
